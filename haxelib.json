@@ -1,0 +1,10 @@
+{
+	"name": "consolitis",
+	"url": "",
+	"license": "MIT",
+	"tags": [],
+	"description": "",
+	"version": "1.0.0",
+	"contributors": [ "decept404" ],
+	"dependencies": {"hscript":""}
+}
