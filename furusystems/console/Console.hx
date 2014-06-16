@@ -62,7 +62,7 @@ class Console extends Sprite
 		commandHelp = new Map<String,String>();
 		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
 		#if !debug
-		Log.trace = trace;
+		Log.trace = log;
 		#end
 		outField = new TextField();
 		outField.backgroundColor = 0x111111;
@@ -93,7 +93,7 @@ class Console extends Sprite
 				name = n.innerData;
 			}
 		}
-		trace(name.split(".").pop()+" v." + ver, null);
+		log(name.split(".").pop()+" v." + ver, null);
 		addEventListener(MouseEvent.MOUSE_WHEEL, onMouseWheel);
 		autoComplete = new AutocompleteManager(inField);
 		dict = new AutocompleteDictionary();
@@ -139,12 +139,12 @@ class Console extends Sprite
 				#if !debug 
 				try { 
 				#end
-					trace("<< " + inField.text, SYSTEM);
+					log("<< " + inField.text, SYSTEM);
 					var result = execute(inField.text); 
-					if (result != "" && result!=null) trace(">> "+result, null);
+					if (result != "" && result!=null) log(">> "+result, null);
 				#if !debug
 				}catch (e:Dynamic) {
-					trace("" + e, ERROR);
+					log("" + e, ERROR);
 				}
 				#end
 				inField.text = "";
@@ -210,12 +210,12 @@ class Console extends Sprite
 	
 	function showHelp() 
 	{
-		trace("Commands are typed in the format 'command arg2 arg2':", null);
-		trace("Commands:", null);
+		log("Commands are typed in the format 'command arg2 arg2':", null);
+		log("Commands:", null);
 		for (c in commands.keys()) {
-			trace("\t" + c + ":", null);
+			log("\t" + c + ":", null);
 			if (commandHelp.exists(c)) {
-				trace("\t - " + commandHelp[c], null);	
+				log("\t - " + commandHelp[c], null);	
 			}
 		}
 	}
@@ -224,12 +224,12 @@ class Console extends Sprite
 	{
 		scroll(e.delta);
 	}
-	public function trace(d:Dynamic, ?pos:PosInfos) {
+	public function log(d:Dynamic, ?pos:Dynamic) {
 		var level:LogLevel = NORMAL;
 		var split = (d + "").split("\n");
 		if (split.length > 1) {
 			for (i in split) {
-				trace(i, pos);
+				log(i, pos);
 			}
 			return;
 		}
