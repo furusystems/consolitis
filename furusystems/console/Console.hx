@@ -6,6 +6,7 @@ import flash.display.StageScaleMode;
 import flash.events.Event;
 import flash.events.KeyboardEvent;
 import flash.events.MouseEvent;
+import flash.filters.DropShadowFilter;
 import flash.geom.Rectangle;
 import flash.text.TextField;
 import flash.text.TextFieldType;
@@ -61,7 +62,7 @@ class Console extends Sprite
 		commandHelp = new Map<String,String>();
 		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
 		#if !debug
-		Log.trace = handleTrace;
+		Log.trace = trace;
 		#end
 		outField = new TextField();
 		outField.backgroundColor = 0x111111;
@@ -73,9 +74,11 @@ class Console extends Sprite
 		addChild(inField);
 		history = [];
 		outField.defaultTextFormat = normalFmt;
+		inField.height = 20;
 		inField.defaultTextFormat = new TextFormat("_typewriter", 12, 0x44bb44);
 		inField.type = TextFieldType.INPUT;
-		inField.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown,false,9999);
+		inField.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown, false, 9999);
+		filters = [new DropShadowFilter(2, 90)];
 		clear();
 		
 		var desc = NativeApplication.nativeApplication.applicationDescriptor;
@@ -90,7 +93,7 @@ class Console extends Sprite
 				name = n.innerData;
 			}
 		}
-		handleTrace(name.split(".").pop()+" v." + ver, null);
+		trace(name.split(".").pop()+" v." + ver, null);
 		addEventListener(MouseEvent.MOUSE_WHEEL, onMouseWheel);
 		autoComplete = new AutocompleteManager(inField);
 		dict = new AutocompleteDictionary();
@@ -103,19 +106,28 @@ class Console extends Sprite
 	function onAddedToStage(e:Event):Void 
 	{
 		removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
-		stage.addEventListener(KeyboardEvent.KEY_DOWN, onTabCheck);
+		stage.addEventListener(KeyboardEvent.KEY_DOWN, onTabCheck,true,9999);
 		stage.scaleMode = StageScaleMode.NO_SCALE;
 		stage.align = StageAlign.TOP_LEFT;
 	}
 	
 	function onTabCheck(e:KeyboardEvent):Void 
 	{
-		if (e.keyCode == Keyboard.TAB) {
+		if (e.keyCode == Keyboard.TAB && visible) {
 			e.preventDefault();
 			e.stopPropagation();
 			e.stopImmediatePropagation();
 			stage.focus = inField;
 			inField.setSelection(inField.text.length, inField.text.length);
+		}else if (e.keyCode == Keyboard.ESCAPE) {
+			if (visible = !visible) {				
+				stage.focus = inField;
+				inField.setSelection(inField.text.length, inField.text.length);
+			}
+		}else if (e.keyCode == Keyboard.PAGE_UP && visible) {
+			scroll( numLinesVisible());
+		}else if (e.keyCode == Keyboard.PAGE_DOWN && visible) {
+			scroll( -numLinesVisible());
 		}
 	}
 	
@@ -129,7 +141,7 @@ class Console extends Sprite
 				#end
 					trace("<< " + inField.text, SYSTEM);
 					var result = execute(inField.text); 
-					if (result != "" && result!=null) handleTrace(">> "+result, null);
+					if (result != "" && result!=null) trace(">> "+result, null);
 				#if !debug
 				}catch (e:Dynamic) {
 					trace("" + e, ERROR);
@@ -145,11 +157,6 @@ class Console extends Sprite
 				inField.text = history.pop();
 				inField.setSelection(0, inField.text.length);
 			}
-		}
-		switch(e.keyCode) {
-			case Keyboard.NUMBER_0 | Keyboard.NUMBER_1 | Keyboard.NUMBER_2 | Keyboard.NUMBER_3 | Keyboard.NUMBER_4 | Keyboard.NUMBER_5 | Keyboard.NUMBER_6 | Keyboard.NUMBER_7 | Keyboard.NUMBER_8 | Keyboard.NUMBER_9:
-				e.stopPropagation();
-			default:
 		}
 	}
 	inline function getTokens(str:String):Array<Token> {
@@ -203,12 +210,12 @@ class Console extends Sprite
 	
 	function showHelp() 
 	{
-		handleTrace("Commands are typed in the format 'command arg2 arg2':", null);
-		handleTrace("Commands:", null);
+		trace("Commands are typed in the format 'command arg2 arg2':", null);
+		trace("Commands:", null);
 		for (c in commands.keys()) {
-			handleTrace("\t" + c + ":", null);
+			trace("\t" + c + ":", null);
 			if (commandHelp.exists(c)) {
-				handleTrace("\t - " + commandHelp[c], null);	
+				trace("\t - " + commandHelp[c], null);	
 			}
 		}
 	}
@@ -217,12 +224,12 @@ class Console extends Sprite
 	{
 		scroll(e.delta);
 	}
-	public function handleTrace(d:Dynamic, ?pos:PosInfos) {
+	public function trace(d:Dynamic, ?pos:PosInfos) {
 		var level:LogLevel = NORMAL;
 		var split = (d + "").split("\n");
 		if (split.length > 1) {
 			for (i in split) {
-				handleTrace(i, pos);
+				trace(i, pos);
 			}
 			return;
 		}
@@ -254,6 +261,7 @@ class Console extends Sprite
 	{
 		dims = rect;
 		inField.y = Math.floor(dims.height - 20);
+		
 		outField.width = inField.width = dims.width;
 		outField.height = dims.height - 20;
 		redraw();
