@@ -1,5 +1,7 @@
 package furusystems.console;
+#if air3
 import flash.desktop.NativeApplication;
+#end
 import flash.display.Sprite;
 import flash.display.StageAlign;
 import flash.display.StageScaleMode;
@@ -61,9 +63,9 @@ class Console extends Sprite
 		commands = new Map<String,Dynamic>();
 		commandHelp = new Map<String,String>();
 		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
-		#if !debug
+		//#if !debug
 		Log.trace = trace;
-		#end
+		//#end
 		outField = new TextField();
 		outField.backgroundColor = 0x111111;
 		outField.background = true;
@@ -81,6 +83,7 @@ class Console extends Sprite
 		filters = [new DropShadowFilter(2, 90)];
 		clear();
 		
+		#if air3
 		var desc = NativeApplication.nativeApplication.applicationDescriptor;
 		var f = new Fast(Xml.parse(desc.toXMLString()).firstChild());
 		var ver:String = "";
@@ -93,7 +96,8 @@ class Console extends Sprite
 				name = n.innerData;
 			}
 		}
-		trace(name.split(".").pop()+" v." + ver, null);
+		trace(name.split(".").pop() + " v." + ver, null);
+		#end
 		addEventListener(MouseEvent.MOUSE_WHEEL, onMouseWheel);
 		autoComplete = new AutocompleteManager(inField);
 		dict = new AutocompleteDictionary();
@@ -183,9 +187,14 @@ class Console extends Sprite
 	}
 	
 	public function createCommand(str:String, func:Dynamic, ?help:String) {
+		if (commands.exists(str)) return;
 		commands.set(str, func);
 		if (help != null) commandHelp.set(str, help);
 		dict.addToDictionary(str+" ");
+	}
+	public function removeCommand(str:String):Void {
+		commands.remove(str);
+		commandHelp.remove(str);
 	}
 	
 	inline function runCommand(cmd:Dynamic, tokens:Array<Token>):Dynamic {
