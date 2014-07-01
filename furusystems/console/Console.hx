@@ -1,4 +1,5 @@
 package furusystems.console;
+#if (flash||openfl)
 #if air3
 import flash.desktop.NativeApplication;
 #end
@@ -16,7 +17,13 @@ import flash.text.TextFormat;
 import flash.ui.Keyboard;
 import flash.utils.IDataOutput;
 import furusystems.autocomplete.AutocompleteDictionary;
-import furusystems.autocomplete.AutocompleteManager;
+import furusystems.autocomplete.flash.AutocompleteManager;
+#else
+import furusystems.console.io.STDView;
+#end
+import furusystems.console.Console.Line;
+import furusystems.console.io.IConsoleInput;
+import furusystems.console.io.IConsoleOutput;
 import haxe.Log;
 import haxe.PosInfos;
 import haxe.xml.Fast;
@@ -27,28 +34,35 @@ using furusystems.console.ParseUtils;
  */
 enum LogLevel {
 	SYSTEM;
-	NORMAL;
+	INFO;
 	WARNING;
 	ERROR;
 }
 class Line {
 	public var level:LogLevel;
+	public var lineNo:Int;
 	public var str:String;
-	public inline function new(str:String, level:LogLevel) {
+	public var time:Float;
+	public inline function new(str:String, level:LogLevel, lineNo:Int, time:Float) {
 		this.level = level;
 		this.str = str;
+		this.lineNo = lineNo;
+		this.time = time;
 	}
 }
+#if (flash||openfl)
 class Console extends Sprite
+#else
+class Console
+#end
 {
+	#if (flash||openfl)
 	var outField:TextField;
 	var inField:TextField;
+	var autoComplete:AutocompleteManager;
 	var lines:Array<Line>;
 	var scrollPos:Int = 0;
 	var history:Array<String>;
-	var autoComplete:AutocompleteManager;
-	var commands:Map<String,Dynamic>;
-	var commandHelp:Map<String,String>;
 	var dict:AutocompleteDictionary;
 	static var normalFmt = new TextFormat("_typewriter", 12, 0xbbbbbb);
 	static var systemFmt = new TextFormat("_typewriter", 12, 0x00bb00);
@@ -56,16 +70,22 @@ class Console extends Sprite
 	static var warnFmt = new TextFormat("_typewriter", 12, 0xF18856);
 	var _atBottom:Bool;
 	var dims:Rectangle;
+	#end
+	var commands:Map<String,Dynamic>;
+	var commandHelp:Map<String,String>;
+	
+	
+	var lineCount:Int = 0;
+	public var input:IConsoleInput;
+	public var outputs:Array<IConsoleOutput>;
 	public function new() 
 	{
-		super();
-		_atBottom = true;
+		outputs = [];
 		commands = new Map<String,Dynamic>();
 		commandHelp = new Map<String,String>();
+		#if (flash||openfl)
+		super();
 		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
-		//#if !debug
-		Log.trace = trace;
-		//#end
 		outField = new TextField();
 		outField.backgroundColor = 0x111111;
 		outField.background = true;
@@ -102,11 +122,28 @@ class Console extends Sprite
 		autoComplete = new AutocompleteManager(inField);
 		dict = new AutocompleteDictionary();
 		autoComplete.setDictionary(dict);
+		createCommand("clear", clear, "Clear the console");
+		_atBottom = true;
+		#end
+		
+		#if (neko || cpp)
+		outputs.push(cast input = new STDView());
+		#end
+		Log.trace = trace;
 		
 		createCommand("help", showHelp, "Show this help");
-		createCommand("clear", clear, "Clear the console");
+		#if flash
+			trace("Session start on " + Date.now().toString());
+		#else
+			trace("Session start on " + DateTools.format(Date.now(), "%A, %b %d"));
+		#end
 	}
 	
+	public function start():Void {
+		
+	}
+	
+	#if (flash||openfl)
 	function onAddedToStage(e:Event):Void 
 	{
 		removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
@@ -118,7 +155,9 @@ class Console extends Sprite
 	function onTabCheck(e:KeyboardEvent):Void 
 	{
 		if (e.keyCode == Keyboard.TAB && visible) {
+			#if !cpp
 			e.preventDefault();
+			#end
 			e.stopPropagation();
 			e.stopImmediatePropagation();
 			stage.focus = inField;
@@ -157,74 +196,11 @@ class Console extends Sprite
 			e.stopPropagation();
 		}else if (e.keyCode == Keyboard.UP) {
 			if (history.length > 0) {
+				#if !cpp
 				e.preventDefault();
+				#end
 				inField.text = history.pop();
 				inField.setSelection(0, inField.text.length);
-			}
-		}
-	}
-	inline function getTokens(str:String):Array<Token> {
-		var out:Array<Token> = [];
-		for (item in str.split(" ")) {
-			var def = item.toValue();
-			switch(def.type) {
-				case URL | STRING:
-					out.push(STRING(def.value));
-				case SCRIPT:
-					out.push(SCRIPT(def.value));
-				case NUMBER:
-					out.push(FLOAT(def.value));
-				case NULL:
-					out.push(NULL);
-				case LIST:
-					out.push(LIST(def.value));
-				case BOOLEAN:
-					out.push(BOOL(def.value));
-			}
-			//out.push(new Token(item));
-		}
-		return out;
-	}
-	
-	public function createCommand(str:String, func:Dynamic, ?help:String) {
-		if (commands.exists(str)) return;
-		commands.set(str, func);
-		if (help != null) commandHelp.set(str, help);
-		dict.addToDictionary(str+" ");
-	}
-	public function removeCommand(str:String):Void {
-		commands.remove(str);
-		commandHelp.remove(str);
-	}
-	
-	inline function runCommand(cmd:Dynamic, tokens:Array<Token>):Dynamic {
-		var args:Array<Dynamic> = [];
-		for (i in 0...tokens.length) {
-			args[i] = tokens[i].getParameters()[0];
-		}
-		return Reflect.callMethod(null, cmd, args);
-	}
-	
-	function execute(input:String):String {
-		input = StringTools.trim(input);
-		history.push(input);
-		if (history.length > 10) history.shift();
-		var tokens = getTokens(input);
-		var cmd = tokens.shift();
-		if (commands.exists(cmd.getParameters()[0])) {
-			return runCommand(commands.get(cmd.getParameters()[0]), tokens);
-		}
-		throw "Unknown command";
-	}
-	
-	function showHelp() 
-	{
-		trace("Commands are typed in the format 'command arg2 arg2':", null);
-		trace("Commands:", null);
-		for (c in commands.keys()) {
-			trace("\t" + c + ":", null);
-			if (commandHelp.exists(c)) {
-				trace("\t - " + commandHelp[c], null);	
 			}
 		}
 	}
@@ -233,30 +209,7 @@ class Console extends Sprite
 	{
 		scroll(e.delta);
 	}
-	public function trace(d:Dynamic, ?pos:PosInfos) {
-		var level:LogLevel = NORMAL;
-		var split = (d + "").split("\n");
-		if (split.length > 1) {
-			for (i in split) {
-				trace(i, pos);
-			}
-			return;
-		}
-		if (pos != null) {
-			var shortname = pos.className.split(".").pop();
-			if(pos.customParams!=null && pos.customParams.length > 0 && Std.is(pos.customParams[0], LogLevel)) {
-				level = pos.customParams[0];
-			}
-			if (level == SYSTEM) {
-				lines.push(new Line(lines.length + ": " + d, level));
-			}else {
-				lines.push(new Line(lines.length + ": " + shortname + ": " + d, level));
-			}
-		}else {
-			lines.push(new Line(lines.length + ": " + d, level));
-		}
-		redraw();
-	}
+	
 	
 	inline function getMaxScroll():Int 
 	{
@@ -285,8 +238,8 @@ class Console extends Sprite
 	
 	public function clear() 
 	{
-		
-		lines = [new Line("Init complete at " + Date.now().toString(), SYSTEM)];
+		lineCount = 0;
+		lines = [new Line("Init complete at " + Date.now().toString(), SYSTEM, lineCount, Date.now().getTime())];
 		redraw();
 	}
 	
@@ -323,6 +276,117 @@ class Console extends Sprite
 	inline function numLinesVisible():Int 
 	{
 		return cast Math.max(1, Math.floor((outField.height - 4) / 15));
+	}
+	
+	#end
+	inline function getTokens(str:String):Array<Token> {
+		var out:Array<Token> = [];
+		for (item in str.split(" ")) {
+			var def = item.toValue();
+			switch(def.type) {
+				case URL | STRING:
+					out.push(STRING(def.value));
+				case SCRIPT:
+					out.push(SCRIPT(def.value));
+				case NUMBER:
+					out.push(FLOAT(def.value));
+				case NULL:
+					out.push(NULL);
+				case LIST:
+					out.push(LIST(def.value));
+				case BOOLEAN:
+					out.push(BOOL(def.value));
+			}
+			//out.push(new Token(item));
+		}
+		return out;
+	}
+	
+	public function createCommand(str:String, func:Dynamic, ?help:String) {
+		if (commands.exists(str)) return;
+		commands.set(str, func);
+		if (help != null) commandHelp.set(str, help);
+		#if (openfl || flash) 
+		dict.addToDictionary(str + " ");
+		#end
+	}
+	public function removeCommand(str:String):Void {
+		commands.remove(str);
+		commandHelp.remove(str);
+	}
+	
+	inline function runCommand(cmd:Dynamic, tokens:Array<Token>):Dynamic {
+		var args:Array<Dynamic> = [];
+		for (i in 0...tokens.length) {
+			args[i] = tokens[i].getParameters()[0];
+		}
+		return Reflect.callMethod(null, cmd, args);
+	}
+	
+	function execute(input:String):String {
+		input = StringTools.trim(input);
+		#if (openfl||flash)
+		history.push(input);
+		if (history.length > 10) history.shift();
+		#end
+		var tokens = getTokens(input);
+		var cmd = tokens.shift();
+		if (commands.exists(cmd.getParameters()[0])) {
+			return runCommand(commands.get(cmd.getParameters()[0]), tokens);
+		}
+		throw "Unknown command";
+	}
+	
+	function showHelp() 
+	{
+		trace("Commands are typed in the format 'command arg2 arg2':", null);
+		trace("Commands:", null);
+		for (c in commands.keys()) {
+			trace("\t" + c + ":", null);
+			if (commandHelp.exists(c)) {
+				trace("\t - " + commandHelp[c], null);	
+			}
+		}
+	}
+	
+	function writeLine(line:Line):Void {
+		#if (openfl || flash) 
+			lines.push(line);
+			redraw();
+		#else
+			for (o in outputs) {
+				o.writeLine(line);
+			}
+		#end
+	}
+	
+	public function trace(d:Dynamic, ?pos:PosInfos) {
+		var time = Date.now().getTime();
+		var level:LogLevel = INFO;
+		var split = (d + "").split("\n");
+		if(split.length>1){
+			while (split.length > 1){
+				trace(split.shift(), pos);
+			}
+			return;
+		}
+		
+		var l:Null<Line>;
+		if (pos != null) {
+			var shortname = pos.className.split(".").pop();
+			if(pos.customParams!=null && pos.customParams.length > 0 && Std.is(pos.customParams[0], LogLevel)) {
+				level = pos.customParams[0];
+			}
+			if (level == SYSTEM) {
+				l = new Line(d, level, lineCount++, time);
+			}else {
+				l = new Line(shortname + ": " + d, level, lineCount++, time);
+			}
+		}else {
+			l = new Line(d, level, lineCount++, time);
+		}
+		
+		writeLine(l);
 	}
 	
 }

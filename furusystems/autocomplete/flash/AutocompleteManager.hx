@@ -1,4 +1,4 @@
-﻿package furusystems.autocomplete;
+﻿package furusystems.autocomplete.flash ;
 import flash.events.Event;
 import flash.events.KeyboardEvent;
 import flash.text.TextField;
