@@ -140,9 +140,11 @@ class Console
 		#end
 	}
 	
+	#if !(flash||openfl)
 	public function start():Void {
 		Sys.stdout().writeString("\033[2J\033[1;1H");
 	}
+	#end
 	
 	#if (flash||openfl)
 	function onAddedToStage(e:Event):Void 
