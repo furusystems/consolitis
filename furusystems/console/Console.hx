@@ -83,6 +83,12 @@ class Console
 		outputs = [];
 		commands = new Map<String,Dynamic>();
 		commandHelp = new Map<String,String>();
+		
+		#if (neko || cpp)
+		outputs.push(cast input = new STDView());
+		#end
+		Log.trace = handleTrace;
+		
 		#if (flash||openfl)
 		super();
 		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
@@ -126,11 +132,6 @@ class Console
 		_atBottom = true;
 		#end
 		
-		#if (neko || cpp)
-		outputs.push(cast input = new STDView());
-		#end
-		Log.trace = trace;
-		
 		createCommand("help", showHelp, "Show this help");
 		#if flash
 			trace("Session start on " + Date.now().toString());
@@ -140,7 +141,7 @@ class Console
 	}
 	
 	public function start():Void {
-		
+		Sys.stdout().writeString("\033[2J\033[1;1H");
 	}
 	
 	#if (flash||openfl)
@@ -360,7 +361,7 @@ class Console
 		#end
 	}
 	
-	public function trace(d:Dynamic, ?pos:PosInfos) {
+	public function handleTrace(d:Dynamic, ?pos:PosInfos) {
 		var time = Date.now().getTime();
 		var level:LogLevel = INFO;
 		var split = (d + "").split("\n");
