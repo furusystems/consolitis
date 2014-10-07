@@ -24,6 +24,7 @@ import furusystems.console.io.STDView;
 import furusystems.console.Console.Line;
 import furusystems.console.io.IConsoleInput;
 import furusystems.console.io.IConsoleOutput;
+import haxe.io.BytesOutput;
 import haxe.Log;
 import haxe.PosInfos;
 import haxe.xml.Fast;
@@ -57,6 +58,7 @@ class Console
 #end
 {
 	#if (flash||openfl)
+	public var maxLines:Int;
 	var outField:TextField;
 	var inField:TextField;
 	var autoComplete:AutocompleteManager;
@@ -80,6 +82,7 @@ class Console
 	public var outputs:Array<IConsoleOutput>;
 	public function new() 
 	{
+		maxLines = -1;
 		outputs = [];
 		commands = new Map<String,Dynamic>();
 		commandHelp = new Map<String,String>();
@@ -109,21 +112,21 @@ class Console
 		filters = [new DropShadowFilter(2, 90)];
 		clear();
 		
-		#if air3
-		var desc = NativeApplication.nativeApplication.applicationDescriptor;
-		var f = new Fast(Xml.parse(desc.toXMLString()).firstChild());
-		var ver:String = "";
-		var name:String = "";
-		for (n in f.elements) {
-			if (n.name == "versionNumber") {
-				ver = n.innerData;
-				break;
-			}else if (n.name == "id") {
-				name = n.innerData;
+			#if air3
+			var desc = NativeApplication.nativeApplication.applicationDescriptor;
+			var f = new Fast(Xml.parse(desc.toXMLString()).firstChild());
+			var ver:String = "";
+			var name:String = "";
+			for (n in f.elements) {
+				if (n.name == "versionNumber") {
+					ver = n.innerData;
+					break;
+				}else if (n.name == "id") {
+					name = n.innerData;
+				}
 			}
-		}
-		trace(name.split(".").pop() + " v." + ver, null);
-		#end
+			trace(name.split(".").pop() + " v." + ver, null);
+			#end
 		addEventListener(MouseEvent.MOUSE_WHEEL, onMouseWheel);
 		autoComplete = new AutocompleteManager(inField);
 		dict = new AutocompleteDictionary();
@@ -220,7 +223,7 @@ class Console
 		//return lines.length;
 	}
 	public function save(outStream:IDataOutput):Void {
-		outStream.writeUTFBytes(lines.join("\n"));
+		outStream.writeUTFBytes(lines.join("\r\n"));
 	}
 	public function setSize(rect:Rectangle):Void 
 	{
@@ -300,7 +303,6 @@ class Console
 				case BOOLEAN:
 					out.push(BOOL(def.value));
 			}
-			//out.push(new Token(item));
 		}
 		return out;
 	}
@@ -355,12 +357,16 @@ class Console
 	function writeLine(line:Line):Void {
 		#if (openfl || flash) 
 			lines.push(line);
-			redraw();
-		#else
-			for (o in outputs) {
-				o.writeLine(line);
+			if (maxLines > -1) {
+				while (lines.length > maxLines) {
+					lines.shift();
+				}
 			}
+			redraw();
 		#end
+		for (o in outputs) {
+			o.writeLine(line);
+		}
 	}
 	
 	public function handleTrace(d:Dynamic, ?pos:PosInfos) {
