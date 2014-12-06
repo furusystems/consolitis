@@ -40,15 +40,19 @@ enum LogLevel {
 	ERROR;
 }
 class Line {
+	public var source:String;
 	public var level:LogLevel;
 	public var lineNo:Int;
 	public var str:String;
 	public var time:Float;
-	public inline function new(str:String, level:LogLevel, lineNo:Int, time:Float) {
+	public var timeStamp:String;
+	public inline function new(source:String, str:String, level:LogLevel, lineNo:Int, time:Float) {
+		this.source = source;
 		this.level = level;
 		this.str = str;
 		this.lineNo = lineNo;
 		this.time = time;
+		timeStamp = DateTools.format(Date.now(), "%T");
 	}
 }
 #if (flash||openfl)
@@ -80,8 +84,14 @@ class Console
 	var lineCount:Int = 0;
 	public var input:IConsoleInput;
 	public var outputs:Array<IConsoleOutput>;
+	public var showTimestamp:Bool;
+	public var showSource:Bool;
+	
+	public var defaultHandler:Null<String->Dynamic>;
 	public function new() 
 	{
+		showTimestamp = false;
+		showSource = true;
 		maxLines = -1;
 		outputs = [];
 		commands = new Map<String,Dynamic>();
@@ -220,7 +230,6 @@ class Console
 	inline function getMaxScroll():Int 
 	{
 		return cast Math.max(0, lines.length - numLinesVisible());
-		//return lines.length;
 	}
 	public function save(outStream:IDataOutput):Void {
 		outStream.writeUTFBytes(lines.join("\r\n"));
@@ -245,7 +254,7 @@ class Console
 	public function clear() 
 	{
 		lineCount = 0;
-		lines = [new Line("Init complete at " + Date.now().toString(), SYSTEM, lineCount, Date.now().getTime())];
+		lines = [new Line(null, "Init complete at " + Date.now().toString(), SYSTEM, lineCount, Date.now().getTime())];
 		redraw();
 	}
 	
@@ -254,7 +263,6 @@ class Console
 		if (_atBottom) {
 			scrollPos = getMaxScroll();
 		}
-		//scrollPos = getMaxScroll();
 		outField.text = "";
 		var numLines = numLinesVisible();
 		var scrollRange:Int = cast Math.min(lines.length, scrollPos + numLines);
@@ -264,7 +272,14 @@ class Console
 		}
 		for (i in scrollPos...scrollRange) {
 			var prevIndex:Int = outField.text.length;
-			outField.appendText(lines[i].str + "\n");
+			var str = lines[i].str;
+			if (showSource&&lines[i].source!=null) {
+				str = lines[i].source+": " + str;
+			}
+			if (showTimestamp) {
+				str = lines[i].timeStamp + " : " + str;
+			}
+			outField.appendText(str + "\n");
 			var newIndex = outField.text.length;
 			switch(lines[i].level) {
 				case SYSTEM:
@@ -339,7 +354,8 @@ class Console
 		if (commands.exists(cmd.getParameters()[0])) {
 			return runCommand(commands.get(cmd.getParameters()[0]), tokens);
 		}
-		throw "Unknown command";
+		if (defaultHandler == null) throw "Unknown command";
+		else return defaultHandler(input);
 	}
 	
 	function showHelp() 
@@ -387,12 +403,12 @@ class Console
 				level = pos.customParams[0];
 			}
 			if (level == SYSTEM) {
-				l = new Line(d, level, lineCount++, time);
+				l = new Line(null, d, level, lineCount++, time);
 			}else {
-				l = new Line(shortname + ": " + d, level, lineCount++, time);
+				l = new Line(shortname, d, level, lineCount++, time);
 			}
 		}else {
-			l = new Line(d, level, lineCount++, time);
+			l = new Line(null, d, level, lineCount++, time);
 		}
 		
 		writeLine(l);
