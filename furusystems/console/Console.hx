@@ -63,8 +63,8 @@ class Console
 {
 	#if (flash||openfl)
 	public var maxLines:Int;
-	var outField:TextField;
-	var inField:TextField;
+	public var outField:TextField;
+	public var inField:TextField;
 	var autoComplete:AutocompleteManager;
 	var lines:Array<Line>;
 	var scrollPos:Int = 0;
