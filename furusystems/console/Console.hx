@@ -21,6 +21,7 @@ import furusystems.autocomplete.flash.AutocompleteManager;
 #else
 import furusystems.console.io.STDView;
 #end
+import flash.display.Shape;
 import furusystems.console.Console.Line;
 import furusystems.console.io.IConsoleInput;
 import furusystems.console.io.IConsoleOutput;
@@ -66,7 +67,7 @@ class Console
 	public var outField:TextField;
 	public var inField:TextField;
 	var autoComplete:AutocompleteManager;
-	var lines:Array<Line>;
+	public var lines:Array<Line>;
 	var scrollPos:Int = 0;
 	var history:Array<String>;
 	var dict:AutocompleteDictionary;
@@ -86,6 +87,7 @@ class Console
 	public var outputs:Array<IConsoleOutput>;
 	public var showTimestamp:Bool;
 	public var showSource:Bool;
+	public var background:Sprite;
 	
 	public var defaultHandler:Null<String->Dynamic>;
 	public function new() 
@@ -94,6 +96,9 @@ class Console
 		showSource = true;
 		maxLines = -1;
 		outputs = [];
+		
+		background = new Sprite();
+		
 		commands = new Map<String,Dynamic>();
 		commandHelp = new Map<String,String>();
 		
@@ -105,15 +110,17 @@ class Console
 		#if (flash||openfl)
 		super();
 		addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
+		
 		outField = new TextField();
-		outField.backgroundColor = 0x111111;
-		outField.background = true;
+		
 		inField = new TextField();
-		inField.background = true;
-		inField.backgroundColor = 0;
+		
+		addChild(background);
 		addChild(outField);
 		addChild(inField);
+		
 		history = [];
+		
 		outField.defaultTextFormat = normalFmt;
 		inField.height = 20;
 		inField.defaultTextFormat = new TextFormat("_typewriter", 12, 0x44bb44);
@@ -146,11 +153,6 @@ class Console
 		#end
 		
 		createCommand("help", showHelp, "Show this help");
-		#if flash
-			trace("Session start on " + Date.now().toString());
-		#else
-			trace("Session start on " + DateTools.format(Date.now(), "%A, %b %d"));
-		#end
 	}
 	
 	#if !(flash||openfl)
@@ -241,6 +243,13 @@ class Console
 		
 		outField.width = inField.width = dims.width;
 		outField.height = dims.height - 20;
+		
+		background.graphics.clear();
+		background.graphics.beginFill(0x111111);
+		background.graphics.drawRect(0, 0, dims.width, dims.height);
+		background.graphics.beginFill(0);
+		background.graphics.drawRect(0, inField.y, dims.width, inField.height);
+		
 		redraw();
 	}
 	
@@ -254,7 +263,12 @@ class Console
 	public function clear() 
 	{
 		lineCount = 0;
-		lines = [new Line(null, "Init complete at " + Date.now().toString(), SYSTEM, lineCount, Date.now().getTime())];
+		lines = [];
+		#if flash
+			trace("Session start on " + Date.now().toString(), SYSTEM);
+		#else
+			trace("Session start on " + DateTools.format(Date.now(), "%A, %b %d"), SYSTEM);
+		#end
 		redraw();
 	}
 	
